@@ -62,5 +62,5 @@ class CNN3D(nn.Module):
         x = F.relu(self.fc2(x))
         x = F.dropout(x, p=self.drop_p, training=self.training)
         x = self.fc3(x)
-        print(x)
+        # print(x)
         return x

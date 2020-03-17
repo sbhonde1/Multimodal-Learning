@@ -72,9 +72,10 @@ class Senz3dDataset(Dataset):
         folder_name = self.folders[idx]
         # Load data
         rgb = self.read_images(folder_name, self.transform).unsqueeze_(0)  # (rgb)
-        print(rgb.shape)
+        # print(rgb.shape)
         depth = self.read_depth(folder_name, self.transform).unsqueeze_(0) # (depth)
-        print(depth.shape)
+        # print(depth.shape)
         label = self.read_label(os.path.join(folder_name, 'label.txt'))
-        y = torch.LongTensor(self.enc.transform([[label]]).toarray())
+        # print(label)
+        y = torch.LongTensor(label)
         return rgb, depth, y
