@@ -47,6 +47,7 @@ class Senz3dDataset(Dataset):
         for i in self.frames:
             image = Image.open(os.path.join(selected_folder, '{}-color.png'.format(i))).convert('L')
             image = transform_rgb(image)
+            print(image.shape)
             X.append(image.squeeze_(0))
         X = torch.stack(X, dim=0)
         return X
@@ -72,10 +73,11 @@ class Senz3dDataset(Dataset):
         folder_name = self.folders[idx]
         # Load data
         rgb = self.read_images(folder_name, self.transform).unsqueeze_(0)  # (rgb)
-        # print(rgb.shape)
+        # print("RGB shape {}".format(rgb.shape))
         depth = self.read_depth(folder_name, self.transform).unsqueeze_(0) # (depth)
         # print(depth.shape)
         label = self.read_label(os.path.join(folder_name, 'label.txt'))
         # print(label)
         y = torch.LongTensor(label)
-        return rgb, depth, y
+        # return rgb, depth, y
+        return rgb, rgb, y

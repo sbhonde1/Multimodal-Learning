@@ -46,16 +46,20 @@ class CNN3D(nn.Module):
         self.fc3 = nn.Linear(self.fc_hidden2, self.num_classes)  # fully connected layer, output = multi-classes
 
     def forward(self, x_3d):
+        # print("Input {} ".format(x_3d.shape))
         # Conv 1
         x = self.conv1(x_3d)
+        print("DBG 1 {} ".format(x.shape))
         x = self.bn1(x)
         x = self.relu(x)
         x = self.drop(x)
         # Conv 2
         x = self.conv2(x)
+
         x = self.bn2(x)
         x = self.relu(x)
         x = self.drop(x)
+        print("DBG 2 {} ".format(x.shape))
         # FC 1 and 2
         x = x.view(x.size(0), -1)
         x = F.relu(self.fc1(x))

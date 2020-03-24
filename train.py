@@ -13,6 +13,7 @@ import math
 from model import CNN3D
 from dataset import Senz3dDataset
 from util import *
+from i3dpt import *
 
 train_path = "/home/dudupoo/Downloads/senz3d_dataset/dataset/train/"
 test_path = "/home/dudupoo/Downloads/senz3d_dataset/dataset/test/"
@@ -42,6 +43,9 @@ def train(args,
     for batch_idx, (rgb, depth, y) in enumerate(train_loader):
         # distribute data to device
         rgb, depth, y = rgb.to(device), depth.to(device), y.to(device)
+
+        print(rgb.shape)
+
         optimizer_rgb.zero_grad()
         optimizer_depth.zero_grad()
 
@@ -90,8 +94,16 @@ def main():
     train_loader = data.DataLoader(train_rgb_set, pin_memory=True, batch_size=1)
     valid_loader = data.DataLoader(test_rgb_set, pin_memory=True, batch_size=1)
 
-    model_rgb_cnn = CNN3D(t_dim=len(selected_frames), img_x=img_x, img_y=img_y, num_classes=11).to(device)
-    model_depth_cnn = CNN3D(t_dim=len(selected_frames), img_x=depth_x, img_y=depth_y, num_classes=11).to(device)
+    # model_rgb_cnn = CNN3D(t_dim=len(selected_frames), img_x=img_x, img_y=img_y, num_classes=11).to(device)
+    model_rgb_cnn = I3D(num_classes=11,
+                 modality='rgb',
+                 dropout_prob=0,
+                 name='inception')
+    # model_depth_cnn = CNN3D(t_dim=len(selected_frames), img_x=depth_x, img_y=depth_y, num_classes=11).to(device)
+    model_depth_cnn = I3D(num_classes=11,
+                        modality='rgb',
+                        dropout_prob=0,
+                        name='inception')
     optimizer_rgb = torch.optim.Adam(model_rgb_cnn.parameters(), lr=learning_rate)  # optimize all cnn parameters
     optimizer_depth = torch.optim.Adam(model_depth_cnn.parameters(), lr=learning_rate)  # optimize all cnn parameters
     criterion = torch.nn.CrossEntropyLoss()
@@ -104,7 +116,10 @@ def main():
             return (beta * math.exp(loss1 - loss2)) - 1
         return 0.0
 
-    for epoch in range(50):
+    # print(model_rgb_cnn)
+
+
+    for epoch in range(1):
 
         train(args=args,
               model_rgb=model_rgb_cnn,
