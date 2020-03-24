@@ -14,9 +14,10 @@ from model import CNN3D
 from dataset import Senz3dDataset
 from util import *
 from i3dpt import *
+import torch.nn.functional as F
 
-train_path = "/home/dudupoo/Downloads/senz3d_dataset/dataset/train/"
-test_path = "/home/dudupoo/Downloads/senz3d_dataset/dataset/test/"
+train_path = "/home/dudupoo/data/senz3d_dataset/dataset/train/"
+test_path = "/home/dudupoo/data/senz3d_dataset/dataset/test/"
 img_x, img_y = 256, 256  # resize video 2d frame size
 depth_x, depth_y = 320, 240
 # Select which frame to begin & end in videos
@@ -33,6 +34,7 @@ def train(args,
           valid_loader,
           criterion,
           regularizer,
+          corr,
           epoch):
     device = args.device
     model_rgb.train()
@@ -44,16 +46,22 @@ def train(args,
         # distribute data to device
         rgb, depth, y = rgb.to(device), depth.to(device), y.to(device)
 
-        print(rgb.shape)
-
         optimizer_rgb.zero_grad()
         optimizer_depth.zero_grad()
 
-        output_rgb = model_rgb(rgb)
-        output_depth = model_depth(depth)
+        rgb_out, rgb_feature_map = model_rgb(rgb)
+        depth_out, depth_feature_map = model_depth(depth)
+        rgb_correlation = corr(rgb_feature_map)
+        depth_correlation = corr(depth_feature_map)
+        if batch_idx == 0:
+            print("feature map shape RGB : {}".format(rgb_correlation.shape))
+            print("feature map shape Depth : {}".format(depth_correlation.shape))
 
-        loss_rgb = criterion(output_rgb, torch.max(y, 1)[1])  # index of the max log-probability
-        loss_depth = criterion(output_depth, torch.max(y, 1)[1])
+
+
+
+        loss_rgb = criterion(rgb_out, torch.max(y, 1)[1])  # index of the max log-probability
+        loss_depth = criterion(depth_out, torch.max(y, 1)[1])
 
         focal_reg_param = regularizer(loss_rgb, loss_depth)
         reg_loss_rgb = loss_rgb + (focal_reg_param * loss_depth)
@@ -98,12 +106,12 @@ def main():
     model_rgb_cnn = I3D(num_classes=11,
                  modality='rgb',
                  dropout_prob=0,
-                 name='inception')
+                 name='inception').to(device)
     # model_depth_cnn = CNN3D(t_dim=len(selected_frames), img_x=depth_x, img_y=depth_y, num_classes=11).to(device)
     model_depth_cnn = I3D(num_classes=11,
                         modality='rgb',
                         dropout_prob=0,
-                        name='inception')
+                        name='inception').to(device)
     optimizer_rgb = torch.optim.Adam(model_rgb_cnn.parameters(), lr=learning_rate)  # optimize all cnn parameters
     optimizer_depth = torch.optim.Adam(model_depth_cnn.parameters(), lr=learning_rate)  # optimize all cnn parameters
     criterion = torch.nn.CrossEntropyLoss()
@@ -115,6 +123,13 @@ def main():
         if loss1 - loss2 > 0:
             return (beta * math.exp(loss1 - loss2)) - 1
         return 0.0
+
+    def get_correlation_matrix(feature_map):
+        variance, sample_mean = torch.var_mean(feature_map)
+        x = torchvision.transforms.Normalize(mean=sample_mean, std=variance)
+        normalized = x(feature_map)
+        print(normalized.shape)
+        return feature_map
 
     # print(model_rgb_cnn)
 
@@ -130,6 +145,7 @@ def main():
               valid_loader=valid_loader,
               criterion=criterion,
               regularizer=regularizer,
+              corr=get_correlation_matrix,
               epoch=epoch)
 
 

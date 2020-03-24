@@ -224,7 +224,9 @@ class I3D(torch.nn.Module):
         self.mixed_5b = Mixed(832, [256, 160, 320, 32, 128, 128])
         self.mixed_5c = Mixed(832, [384, 192, 384, 48, 128, 128])
 
-        self.avg_pool = torch.nn.AvgPool3d((2, 7, 7), (1, 1, 1))
+        # self.avg_pool = torch.nn.AvgPool3d((2, 7, 7), (1, 1, 1))
+        # self.avg_pool = torch.nn.AvgPool3d((1, 8, 8), (1, 1, 1))
+        self.avg_pool = torch.nn.AvgPool3d((1, 7, 7), (1, 1, 1))
         self.dropout = torch.nn.Dropout(dropout_prob)
         self.conv3d_0c_1x1 = Unit3Dpy(
             in_channels=1024,
@@ -237,31 +239,52 @@ class I3D(torch.nn.Module):
 
     def forward(self, inp):
         # Preprocessing
+        # print("input to model : {}".format(inp.shape))
         out = self.conv3d_1a_7x7(inp)
+        # print("conv3d_1a_7x7 output : {}".format(out.shape))
         out = self.maxPool3d_2a_3x3(out)
+        # print("maxPool3d_2a_3x3 output : {}".format(out.shape))
         out = self.conv3d_2b_1x1(out)
+        # print("conv3d_2b_1x1 output : {}".format(out.shape))
         out = self.conv3d_2c_3x3(out)
+        # print("conv3d_2c_3x3 output : {}".format(out.shape))
         out = self.maxPool3d_3a_3x3(out)
+        # print("maxPool3d_3a_3x3 output : {}".format(out.shape))
         out = self.mixed_3b(out)
+        # print("mixed_3b output : {}".format(out.shape))
         out = self.mixed_3c(out)
+        # print("mixed_3c output : {}".format(out.shape))
         out = self.maxPool3d_4a_3x3(out)
+        # print("maxPool3d_4a_3x3 output : {}".format(out.shape))
         out = self.mixed_4b(out)
+        # print("mixed_4b output : {}".format(out.shape))
         out = self.mixed_4c(out)
+        # print("mixed_4c output : {}".format(out.shape))
         out = self.mixed_4d(out)
+        # print("mixed_4d output : {}".format(out.shape))
         out = self.mixed_4e(out)
+        # print("mixed_4e output : {}".format(out.shape))
         out = self.mixed_4f(out)
+        # print("mixed_4f output : {}".format(out.shape))
         out = self.maxPool3d_5a_2x2(out)
+        # print("maxPool3d_5a_2x2 output : {}".format(out.shape))
         out = self.mixed_5b(out)
+        # print("mixed_5b output : {}".format(out.shape))
         out = self.mixed_5c(out)
+        feature_map = out
+        # print("mixed_5c output : {}".format(out.shape))
         out = self.avg_pool(out)
+        # print("avg_pool output : {}".format(out.shape))
         out = self.dropout(out)
+        # print("dropout output : {}".format(out.shape))
         out = self.conv3d_0c_1x1(out)
+        # print("conv3d_0c_1x1 output : {}".format(out.shape))
         out = out.squeeze(3)
         out = out.squeeze(3)
         out = out.mean(2)
         out_logits = out
         out = self.softmax(out_logits)
-        return out, out_logits
+        return out, feature_map
 
     def load_tf_weights(self, sess):
         state_dict = {}

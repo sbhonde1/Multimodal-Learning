@@ -6,7 +6,7 @@ import numpy as np
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 import torchvision.transforms as transforms
 
-img_x, img_y = 256, 256  # resize video 2d frame size
+img_x, img_y = 224, 224  # resize video 2d frame size
 
 transform_rgb = transforms.Compose([transforms.Resize([img_x, img_y]),
                                     transforms.ToTensor(),
@@ -45,11 +45,11 @@ class Senz3dDataset(Dataset):
     def read_images(self, selected_folder, use_transform):
         X = []
         for i in self.frames:
-            image = Image.open(os.path.join(selected_folder, '{}-color.png'.format(i))).convert('L')
-            image = transform_rgb(image)
-            print(image.shape)
-            X.append(image.squeeze_(0))
-        X = torch.stack(X, dim=0)
+            rgbimg = Image.open(os.path.join(selected_folder, '{}-color.png'.format(i)))
+            # rgbimg = Image.new("RGB", rgbimg.size)
+            rgbimg = transform_rgb(rgbimg)
+            X.append(rgbimg.squeeze_(0))
+        X = torch.stack(X, dim=1)
         return X
 
     def read_depth(self, selected_folder, use_transform):
@@ -61,7 +61,7 @@ class Senz3dDataset(Dataset):
             depth = transform_depth(depth)
             X.append(depth.squeeze_(0))
 
-        X = torch.stack(X, dim=0)
+        X = torch.stack(X, dim=1)
         return X
 
     def read_label(self, path):
@@ -72,9 +72,11 @@ class Senz3dDataset(Dataset):
         # mode options is given if there's a need to experiment differently on train and valid data
         folder_name = self.folders[idx]
         # Load data
-        rgb = self.read_images(folder_name, self.transform).unsqueeze_(0)  # (rgb)
+        # rgb = self.read_images(folder_name, self.transform).unsqueeze_(0)  # (rgb)
+        rgb = self.read_images(folder_name, self.transform)
         # print("RGB shape {}".format(rgb.shape))
-        depth = self.read_depth(folder_name, self.transform).unsqueeze_(0) # (depth)
+        # depth = self.read_depth(folder_name, self.transform).unsqueeze_(0) # (depth)
+        depth = self.read_depth(folder_name, self.transform)
         # print(depth.shape)
         label = self.read_label(os.path.join(folder_name, 'label.txt'))
         # print(label)
