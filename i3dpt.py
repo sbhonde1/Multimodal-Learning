@@ -272,6 +272,14 @@ class I3D(torch.nn.Module):
         # print("mixed_5b output : {}".format(out.shape))
         out = self.mixed_5c(out)
         feature_map = out
+        #####################################################################################
+
+        variance, sample_mean = torch.var_mean(feature_map)
+        sub_map = torch.sub(feature_map, sample_mean)
+        correlation_matrix = torch.div(sub_map, variance)
+
+        #####################################################################################
+
         # print("mixed_5c output : {}".format(out.shape))
         out = self.avg_pool(out)
         # print("avg_pool output : {}".format(out.shape))
@@ -284,7 +292,7 @@ class I3D(torch.nn.Module):
         out = out.mean(2)
         out_logits = out
         out = self.softmax(out_logits)
-        return out, feature_map
+        return out, correlation_matrix
 
     def load_tf_weights(self, sess):
         state_dict = {}

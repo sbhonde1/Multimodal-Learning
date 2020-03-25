@@ -23,6 +23,7 @@ depth_x, depth_y = 320, 240
 # Select which frame to begin & end in videos
 begin_frame, end_frame, skip_frame = 1, 10, 1
 learning_rate = 1e-4
+_lambda = 0.05 # 50 x 10^-3
 
 
 def train(args,
@@ -51,21 +52,36 @@ def train(args,
 
         rgb_out, rgb_feature_map = model_rgb(rgb)
         depth_out, depth_feature_map = model_depth(depth)
-        rgb_correlation = corr(rgb_feature_map)
-        depth_correlation = corr(depth_feature_map)
-        if batch_idx == 0:
-            print("feature map shape RGB : {}".format(rgb_correlation.shape))
-            print("feature map shape Depth : {}".format(depth_correlation.shape))
 
+        rgb_feature_map_T = torch.transpose(rgb_feature_map, 1, 2)
+        depth_feature_map_T = torch.transpose(depth_feature_map, 1, 2)
+        print("RGB fmap transpose shape :: {}".format(rgb_feature_map_T.shape))
+        print("depth fmap transpose shape :: {}".format(depth_feature_map_T.shape))
 
-
+        rgb_corr = torch.mul(rgb_feature_map, rgb_feature_map_T)
+        depth_corr = torch.mul(depth_feature_map, depth_feature_map_T)
+        print("RGB correlation ::  {}".format(rgb_corr.shape))
+        print("depth correlation :: {}".format(depth_corr.shape))
 
         loss_rgb = criterion(rgb_out, torch.max(y, 1)[1])  # index of the max log-probability
         loss_depth = criterion(depth_out, torch.max(y, 1)[1])
 
+        print("RGB loss :: {}".format(loss_rgb))
+        print("depth loss :: {}".format(loss_depth))
+
         focal_reg_param = regularizer(loss_rgb, loss_depth)
-        reg_loss_rgb = loss_rgb + (focal_reg_param * loss_depth)
-        reg_loss_depth = loss_depth + (focal_reg_param * loss_rgb)
+
+        print("focal regularizer parameter :: {} ".format(focal_reg_param))
+
+        ssa_loss = focal_reg_param * (torch.sub(rgb_corr, depth_corr))
+
+        print("ssa loss :: {} " .format(ssa_loss.shape))
+
+        reg_loss_rgb = loss_rgb + (_lambda * ssa_loss)
+        reg_loss_depth = loss_depth + (_lambda * ssa_loss)
+
+        # print(reg_loss_rgb)
+        # print(reg_loss_depth)
 
         reg_loss_rgb.backward(retain_graph=True)
         reg_loss_depth.backward()
@@ -124,11 +140,17 @@ def main():
             return (beta * math.exp(loss1 - loss2)) - 1
         return 0.0
 
-    def get_correlation_matrix(feature_map):
+    def get_correlation_matrix(feature_map):    # Unused
         variance, sample_mean = torch.var_mean(feature_map)
-        x = torchvision.transforms.Normalize(mean=sample_mean, std=variance)
-        normalized = x(feature_map)
-        print(normalized.shape)
+        # x = torchvision.transforms.Normalize(mean=sample_mean, std=variance)
+        # normalized = x(feature_map)
+        # print(normalized.shape)
+        # sub_tensor = torch.sub(feature_map, sample_mean)
+        # normalized_tensor = torch.addcdiv(sub_tensor, variance)
+        # feature_map = feature_map.sub_(sample_mean).div_(variance)
+        sample_mean = torch.as_tensor(sample_mean, dtype=feature_map.dtype, device=feature_map.device)
+        variance = torch.as_tensor(variance, dtype=feature_map.dtype, device=feature_map.device)
+        feature_map.sub_(sample_mean).div_(variance)
         return feature_map
 
     # print(model_rgb_cnn)
