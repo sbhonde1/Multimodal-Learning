@@ -68,23 +68,29 @@ def train(args,
 
         loss_rgb = criterion(rgb_out, torch.max(y, 1)[1])  # index of the max log-probability
         loss_depth = criterion(depth_out, torch.max(y, 1)[1])
-
         # print("RGB loss :: {}".format(loss_rgb))
         # print("depth loss :: {}".format(loss_depth))
 
         focal_reg_param = regularizer(loss_rgb, loss_depth)
 
-        # print("focal regularizer parameter :: {} ".format(focal_reg_param))
+        """
+        norm || x ||
+            Take the difference element wise
+            Square all the values
+            Add them all together
+            Take the square root
+            Multiply it with rho
+        """
+        corr_diff_rgb = torch.sqrt(torch.sum(torch.sub(rgb_corr, depth_corr) ** 2))
+        corr_diff_depth = torch.sqrt(torch.sum(torch.sub(depth_corr, rgb_corr) ** 2))
 
-        ssa_loss = focal_reg_param * torch.sum((torch.sub(rgb_corr, depth_corr)) ** 2)
+        # loss (m,n)
+        ssa_loss_rgb = focal_reg_param * corr_diff_rgb
+        ssa_loss_depth = focal_reg_param * corr_diff_depth
 
-        # print("ssa loss :: {} " .format(ssa_loss.shape))
-
-        reg_loss_rgb = loss_rgb + (_lambda * ssa_loss)
-        reg_loss_depth = loss_depth + (_lambda * ssa_loss)
-
-        # print(reg_loss_rgb)
-        # print(reg_loss_depth)
+        # total loss
+        reg_loss_rgb = loss_rgb + (_lambda * ssa_loss_rgb)
+        reg_loss_depth = loss_depth + (_lambda * ssa_loss_depth)
 
         reg_loss_rgb.backward(retain_graph=True)
         reg_loss_depth.backward()
@@ -92,16 +98,13 @@ def train(args,
         optimizer_rgb.step()
         optimizer_depth.step()
 
-        ssa_losses.append(ssa_loss.item())
+        ssa_losses.append(ssa_loss_rgb.item())
         rgb_losses.append(loss_rgb.item())
         depth_losses.append(loss_depth.item())
         rgb_regularized_losses.append(reg_loss_rgb.item())
         depth_regularized_losses.append(reg_loss_depth.item())
         tq.update(1)
-        # if epoch % 10 == 0 and batch_idx == 0:
-        #     print("Regularizer : {}".format(focal_reg_param))
-        #     print("Normal RGB loss : {} \t Regularized RGB loss : {} ".format(loss_rgb, reg_loss_rgb))
-        #     print("Normal Depth loss : {} \t Regularized Depth loss : {} ".format(loss_depth, reg_loss_depth))
+
     mean_ssa = np.mean(ssa_losses)
     mean_rgb = np.mean(rgb_losses)
     mean_reg_rgb = np.mean(rgb_regularized_losses)
@@ -171,6 +174,7 @@ def main():
                                                     epoch=epoch,
                                                     tq=tq)
         tq.set_postfix(ssa_loss='{:.5f}'.format(ssa), regularized_rgb_loss='{:.5f}'.format(reg_rgb))
+
 
 if __name__ == "__main__":
     main()
