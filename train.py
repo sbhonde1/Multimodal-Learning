@@ -9,6 +9,7 @@ import torch.utils.data
 from torch.optim import Adam
 from tqdm import tqdm
 import math
+import random
 
 from model import CNN3D
 from dataset import Senz3dDataset
@@ -40,7 +41,6 @@ def train(args,
     device = args.device
     model_rgb.train()
     model_depth.train()
-    ssa_losses = []
     rgb_losses = []
     depth_losses = []
     rgb_regularized_losses = []
@@ -98,25 +98,29 @@ def train(args,
         optimizer_rgb.step()
         optimizer_depth.step()
 
-        ssa_losses.append(ssa_loss_rgb.item())
         rgb_losses.append(loss_rgb.item())
         depth_losses.append(loss_depth.item())
         rgb_regularized_losses.append(reg_loss_rgb.item())
         depth_regularized_losses.append(reg_loss_depth.item())
         tq.update(1)
 
-    mean_ssa = np.mean(ssa_losses)
     mean_rgb = np.mean(rgb_losses)
     mean_reg_rgb = np.mean(rgb_regularized_losses)
     mean_depth = np.mean(depth_losses)
     mean_reg_depth = np.mean(depth_regularized_losses)
-    return mean_ssa, mean_rgb, mean_reg_rgb, mean_depth, mean_reg_depth
+    return {"loss_rgb": mean_rgb, "loss_reg_rgb": mean_reg_rgb, "loss_depth": mean_depth,
+            "loss_reg_depth": mean_reg_depth}
 
 
 def main():
     # Detect devices
+    # print(torch.__version__)
     use_cuda = torch.cuda.is_available()  # check if GPU exists
     device = torch.device("cuda" if use_cuda else "cpu")  # use CPU or GPU
+
+    # Initialize Tensorboard
+    tb_writer = initialize_tensorboard(log_dir="/home/dudupoo/PycharmProjects/multimodal_3d_experiments/tensorboard_logs/",
+                                       common_name="experiment {}".format(random.randint))
 
     train_videos_path = []
     test_videos_path = []
@@ -162,18 +166,24 @@ def main():
     for epoch in range(1):
         tq = tqdm(total=(len(train_loader)))
         tq.set_description('Epoch {}, lr {}'.format(epoch, lr))
-        ssa, rgb, reg_rgb, depth, reg_depth = train(args=args,
-                                                    model_rgb=model_rgb_cnn,
-                                                    model_depth=model_depth_cnn,
-                                                    optimizer_rgb=optimizer_rgb,
-                                                    optimizer_depth=optimizer_depth,
-                                                    train_loader=train_loader,
-                                                    valid_loader=valid_loader,
-                                                    criterion=criterion,
-                                                    regularizer=regularizer,
-                                                    epoch=epoch,
-                                                    tq=tq)
-        tq.set_postfix(ssa_loss='{:.5f}'.format(ssa), regularized_rgb_loss='{:.5f}'.format(reg_rgb))
+        """
+        {"loss_rgb": mean_rgb, "loss_reg_rgb": mean_reg_rgb, "loss_depth": mean_depth,
+            "loss_reg_depth": mean_reg_depth}
+        """
+        train_dict = train(args=args,
+                           model_rgb=model_rgb_cnn,
+                           model_depth=model_depth_cnn,
+                           optimizer_rgb=optimizer_rgb,
+                           optimizer_depth=optimizer_depth,
+                           train_loader=train_loader,
+                           valid_loader=valid_loader,
+                           criterion=criterion,
+                           regularizer=regularizer,
+                           epoch=epoch,
+                           tq=tq)
+        tq.set_postfix(RGB_loss='{:.5f}'.format(train_dict["loss_rgb"]),
+                       regularized_rgb_loss='{:.5f}'.format(train_dict["loss_reg_rgb"]))
+        update_tensorboard(tb_writer=tb_writer, epoch=epoch, train_dict=train_dict)
 
 
 if __name__ == "__main__":
