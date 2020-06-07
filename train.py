@@ -15,6 +15,7 @@ from model import CNN3D
 from dataset import Senz3dDataset
 from util import *
 from i3dpt import *
+from validation import *
 import torch.nn.functional as F
 
 train_path = "/home/sagar/data/senz3d_dataset/dataset/train/"
@@ -24,6 +25,7 @@ depth_x, depth_y = 320, 240
 # Select which frame to begin & end in videos
 begin_frame, end_frame, skip_frame = 1, 8, 1
 n_epoch = 10
+num_classes = 11
 lr = 1e-4
 _lambda = 0.05  # 50 x 10^-3
 
@@ -38,6 +40,7 @@ def train(args,
           criterion,
           regularizer,
           epoch,
+          tb_writer,
           tq):
     device = args.device
     model_rgb.train()
@@ -46,7 +49,8 @@ def train(args,
     depth_losses = []
     rgb_regularized_losses = []
     depth_regularized_losses = []
-    result = {}
+    train_result = {}
+    valid_result = {}
     for batch_idx, (rgb, depth, y) in enumerate(train_loader):
         # distribute data to device
         rgb, depth, y = rgb.to(device), depth.to(device), y.to(device)
@@ -111,15 +115,20 @@ def train(args,
         depth_regularized_losses.append(reg_loss_depth.item())
         tq.update(1)
         if batch_idx == 0:
-            result.update({"rgb_ft_map": rgb_avg_sq_ft_map, "depth_ft_map": depth_avg_sq_ft_map})
+            train_result.update({"rgb_ft_map": rgb_avg_sq_ft_map, "depth_ft_map": depth_avg_sq_ft_map})
 
+    valid_result = validation(model_rgb=model_rgb, model_depth=model_depth, criterion=criterion,
+                              valid_loader=valid_loader, num_classes=num_classes)
     mean_rgb = np.mean(rgb_losses)
     mean_reg_rgb = np.mean(rgb_regularized_losses)
     mean_depth = np.mean(depth_losses)
     mean_reg_depth = np.mean(depth_regularized_losses)
-    result.update({"loss_rgb": mean_rgb, "loss_reg_rgb": mean_reg_rgb, "loss_depth": mean_depth,
-              "loss_reg_depth": mean_reg_depth})
-    return result
+    train_result.update({"loss_rgb": mean_rgb, "loss_reg_rgb": mean_reg_rgb, "loss_depth": mean_depth,
+                         "loss_reg_depth": mean_reg_depth})
+    tq.set_postfix(RGB_loss='{:.5f}'.format(train_result["loss_rgb"]),
+                   regularized_rgb_loss='{:.5f}'.format(train_result["loss_reg_rgb"]))
+    update_tensorboard(tb_writer=tb_writer, epoch=epoch, train_dict=train_result, valid_dict=valid_result)
+    update_tensorboard_image(tb_writer, epoch, train_result)
 
 
 def main():
@@ -153,12 +162,12 @@ def main():
     valid_loader = data.DataLoader(test_rgb_set, pin_memory=True, batch_size=1)
 
     # model_rgb_cnn = CNN3D(t_dim=len(selected_frames), img_x=img_x, img_y=img_y, num_classes=11).to(device)
-    model_rgb_cnn = I3D(num_classes=11,
+    model_rgb_cnn = I3D(num_classes=num_classes,
                         modality='rgb',
                         dropout_prob=0,
                         name='inception').to(device)
     # model_depth_cnn = CNN3D(t_dim=len(selected_frames), img_x=depth_x, img_y=depth_y, num_classes=11).to(device)
-    model_depth_cnn = I3D(num_classes=11,
+    model_depth_cnn = I3D(num_classes=num_classes,
                           modality='rgb',
                           dropout_prob=0,
                           name='inception').to(device)
@@ -183,20 +192,18 @@ def main():
         {"loss_rgb": mean_rgb, "loss_reg_rgb": mean_reg_rgb, "loss_depth": mean_depth,
             "loss_reg_depth": mean_reg_depth}
         """
-        train_dict = train(args=args,
-                           model_rgb=model_rgb_cnn,
-                           model_depth=model_depth_cnn,
-                           optimizer_rgb=optimizer_rgb,
-                           optimizer_depth=optimizer_depth,
-                           train_loader=train_loader,
-                           valid_loader=valid_loader,
-                           criterion=criterion,
-                           regularizer=regularizer,
-                           epoch=epoch,
-                           tq=tq)
-        tq.set_postfix(RGB_loss='{:.5f}'.format(train_dict["loss_rgb"]),
-                       regularized_rgb_loss='{:.5f}'.format(train_dict["loss_reg_rgb"]))
-        update_tensorboard(tb_writer=tb_writer, epoch=epoch, train_dict=train_dict)
+        train(args=args,
+              model_rgb=model_rgb_cnn,
+              model_depth=model_depth_cnn,
+              optimizer_rgb=optimizer_rgb,
+              optimizer_depth=optimizer_depth,
+              train_loader=train_loader,
+              valid_loader=valid_loader,
+              criterion=criterion,
+              regularizer=regularizer,
+              epoch=epoch,
+              tb_writer=tb_writer,
+              tq=tq)
 
 
 if __name__ == "__main__":

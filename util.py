@@ -16,26 +16,30 @@ def initialize_tensorboard(log_dir, common_name):
     return tb_writer
 
 
-def update_tensorboard(tb_writer, epoch, train_dict):
+def update_tensorboard(tb_writer, epoch, train_dict, valid_dict):
     """
     {"loss_rgb": mean_rgb, "loss_reg_rgb": mean_reg_rgb, "loss_depth": mean_depth,
         "loss_reg_depth": mean_reg_depth, "rgb_ft_map": rgb_avg_sq_ft_map, "depth_ft_map": depth_avg_sq_ft_map}
+    {'valid_rgb_loss': valid_rgb_loss, 'valid_depth_loss': valid_depth_loss}
     """
-    tb_writer.add_scalars(main_tag='RGB train', tag_scalar_dict={'RGB train loss': train_dict["loss_rgb"],
-                                                                 'RGB regularized train loss': train_dict[
-                                                                     "loss_reg_rgb"]},
-                          global_step=epoch)
-    # tb_writer.add_scalar(tag='RGB train loss', scalar_value=train_dict["loss_rgb"], global_step=epoch)
-    # tb_writer.add_scalar(tag='RGB regularized train loss', scalar_value=train_dict["loss_reg_rgb"], global_step=epoch)
-    tb_writer.add_scalars(main_tag='Depth train',
-                          tag_scalar_dict={'Depth train loss': train_dict["loss_depth"],
-                                           'Depth regularized train loss': train_dict["loss_reg_depth"]},
-                          global_step=epoch)
-    # tb_writer.add_scalar(tag='Depth train loss', scalar_value=train_dict["loss_depth"], global_step=epoch)
-    # tb_writer.add_scalar(tag='Depth regularized train loss', scalar_value=train_dict["loss_reg_depth"],
-    # global_step=epoch)
-    tb_writer.add_image(tag='RGB feature map', img_tensor=train_dict['rgb_ft_map'].unsqueeze(dim=0))
-    tb_writer.add_image(tag='Depth feature map', img_tensor=train_dict['depth_ft_map'].unsqueeze(dim=0))
+
+    tb_writer.add_scalar(tag='RGB train loss', scalar_value=train_dict["loss_rgb"], global_step=epoch)
+    tb_writer.add_scalar(tag='RGB regularized train loss', scalar_value=train_dict["loss_reg_rgb"], global_step=epoch)
+    # tb_writer.add_scalars(main_tag='Depth train',
+    #                       tag_scalar_dict={'Depth train loss': train_dict["loss_depth"],
+    #                                        'Depth regularized train loss': train_dict["loss_reg_depth"]},
+    #                       global_step=epoch)
+    tb_writer.add_scalar(tag='Depth train loss', scalar_value=train_dict["loss_depth"], global_step=epoch)
+    tb_writer.add_scalar(tag='Depth regularized train loss', scalar_value=train_dict["loss_reg_depth"],
+                         global_step=epoch)
+    tb_writer.add_scalar(tag='RGB valid loss', scalar_value=valid_dict["valid_rgb_loss"], global_step=epoch)
+    tb_writer.add_scalar(tag='Depth valid loss', scalar_value=valid_dict["valid_depth_loss"], global_step=epoch)
+
+
+def update_tensorboard_image(tb_writer, epoch, train_dict):
+    tb_writer.add_image(tag='RGB feature map', img_tensor=train_dict['rgb_ft_map'].unsqueeze(dim=0), global_step=epoch)
+    tb_writer.add_image(tag='Depth feature map', img_tensor=train_dict['depth_ft_map'].unsqueeze(dim=0),
+                        global_step=epoch)
 
 
 def parse():
