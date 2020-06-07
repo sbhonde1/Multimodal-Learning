@@ -17,12 +17,13 @@ from util import *
 from i3dpt import *
 import torch.nn.functional as F
 
-train_path = "/home/dudupoo/data/senz3d_dataset/dataset/train/"
-test_path = "/home/dudupoo/data/senz3d_dataset/dataset/test/"
+train_path = "/home/sagar/data/senz3d_dataset/dataset/train/"
+test_path = "/home/sagar/data/senz3d_dataset/dataset/test/"
 img_x, img_y = 256, 256  # resize video 2d frame size
 depth_x, depth_y = 320, 240
 # Select which frame to begin & end in videos
-begin_frame, end_frame, skip_frame = 1, 10, 1
+begin_frame, end_frame, skip_frame = 1, 8, 1
+n_epoch = 10
 lr = 1e-4
 _lambda = 0.05  # 50 x 10^-3
 
@@ -45,7 +46,7 @@ def train(args,
     depth_losses = []
     rgb_regularized_losses = []
     depth_regularized_losses = []
-
+    result = {}
     for batch_idx, (rgb, depth, y) in enumerate(train_loader):
         # distribute data to device
         rgb, depth, y = rgb.to(device), depth.to(device), y.to(device)
@@ -58,8 +59,14 @@ def train(args,
 
         rgb_feature_map_T = torch.transpose(rgb_feature_map, 1, 2)
         depth_feature_map_T = torch.transpose(depth_feature_map, 1, 2)
-        # print("RGB fmap transpose shape :: {}".format(rgb_feature_map_T.shape))
-        # print("depth fmap transpose shape :: {}".format(depth_feature_map_T.shape))
+        # print("RGB fmap shape :: {}".format(rgb_feature_map.shape))
+        # print("depth fmap shape :: {}".format(depth_feature_map.shape))
+        # torch.save(rgb_feature_map_T, "rgbFeatureMapT.pt")
+
+        rgb_sq_ft_map = rgb_feature_map_T.squeeze()
+        rgb_avg_sq_ft_map = torch.mean(rgb_sq_ft_map, 0)
+        depth_sq_ft_map = depth_feature_map_T.squeeze()
+        depth_avg_sq_ft_map = torch.mean(depth_sq_ft_map, 0)
 
         rgb_corr = torch.mul(rgb_feature_map, rgb_feature_map_T)
         depth_corr = torch.mul(depth_feature_map, depth_feature_map_T)
@@ -103,24 +110,30 @@ def train(args,
         rgb_regularized_losses.append(reg_loss_rgb.item())
         depth_regularized_losses.append(reg_loss_depth.item())
         tq.update(1)
+        if batch_idx == 0:
+            result.update({"rgb_ft_map": rgb_avg_sq_ft_map, "depth_ft_map": depth_avg_sq_ft_map})
 
     mean_rgb = np.mean(rgb_losses)
     mean_reg_rgb = np.mean(rgb_regularized_losses)
     mean_depth = np.mean(depth_losses)
     mean_reg_depth = np.mean(depth_regularized_losses)
-    return {"loss_rgb": mean_rgb, "loss_reg_rgb": mean_reg_rgb, "loss_depth": mean_depth,
-            "loss_reg_depth": mean_reg_depth}
+    result.update({"loss_rgb": mean_rgb, "loss_reg_rgb": mean_reg_rgb, "loss_depth": mean_depth,
+              "loss_reg_depth": mean_reg_depth})
+    return result
 
 
 def main():
     # Detect devices
     # print(torch.__version__)
+    args = parse()
     use_cuda = torch.cuda.is_available()  # check if GPU exists
     device = torch.device("cuda" if use_cuda else "cpu")  # use CPU or GPU
 
     # Initialize Tensorboard
-    tb_writer = initialize_tensorboard(log_dir="/home/dudupoo/PycharmProjects/multimodal_3d_experiments/tensorboard_logs/",
-                                       common_name="experiment {}".format(random.randint))
+
+    tb_writer = initialize_tensorboard(
+        log_dir="/home/sagar/PycharmProjects/multimodal_3d_experiments/tensorboard_logs/",
+        common_name="experiment{}".format(args.save_as))
 
     train_videos_path = []
     test_videos_path = []
@@ -163,9 +176,9 @@ def main():
 
     # print(model_rgb_cnn)
 
-    for epoch in range(1):
+    for epoch in range(n_epoch):
         tq = tqdm(total=(len(train_loader)))
-        tq.set_description('Epoch {}, lr {}'.format(epoch, lr))
+        tq.set_description('ep {}, {}'.format(epoch, lr))
         """
         {"loss_rgb": mean_rgb, "loss_reg_rgb": mean_reg_rgb, "loss_depth": mean_depth,
             "loss_reg_depth": mean_reg_depth}
