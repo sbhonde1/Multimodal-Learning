@@ -2,6 +2,7 @@
 This repository contains the source code for the paper "Improving the performance of unimodal dynamic hand gesture recognition with multimodal training"
 
 # Reference
+[model source](https://github.com/hassony2/kinetics_i3d_pytorch/blob/master/src/i3dpt.py)
 ```
 @misc{abavisani2018improving,
     title={Improving the Performance of Unimodal Dynamic Hand-Gesture Recognition with Multimodal Training},
